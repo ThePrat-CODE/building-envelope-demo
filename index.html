@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>3D Building Envelope Generator</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    canvas { display: block; }
+    #form {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
+      padding: 10px;
+      z-index: 10;
+      width: 300px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="form">
+  <label>Site Width (m): <input id="width" type="number" value="20"></label><br>
+  <label>Site Length (m): <input id="length" type="number" value="30"></label><br>
+  <label>Setback Road (front): <input id="front" type="number" value="2"></label><br>
+  <label>Setback Canal (back): <input id="back" type="number" value="3"></label><br>
+  <label>Setback Left/Right: <input id="side" type="number" value="0.5"></label><br>
+  <label>Max Height (m): <input id="height" type="number" value="16"></label><br><br>
+  <button onclick="drawBuilding()">Draw Building</button>
+  <button onclick="exportData()">Export JSON</button>
+  <p><strong>FAR:</strong> <span id="far"></span><br>
+     <strong>OSR:</strong> <span id="osr"></span></p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r148/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.148.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({antialias: true});
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  camera.position.set(30, 30, 30);
+  controls.target.set(0, 0, 0);
+  controls.update();
+
+  const light = new THREE.DirectionalLight(0xffffff, 1);
+  light.position.set(50, 100, 50).normalize();
+  scene.add(light);
+  scene.add(new THREE.AmbientLight(0x404040));
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(100, 100),
+    new THREE.MeshPhongMaterial({color: 0xcccccc, side: THREE.DoubleSide})
+  );
+  ground.rotation.x = - Math.PI / 2;
+  scene.add(ground);
+
+  let building;
+
+  function drawBuilding() {
+    if (building) {
+      scene.remove(building);
+    }
+
+    const siteWidth = parseFloat(document.getElementById('width').value);
+    const siteLength = parseFloat(document.getElementById('length').value);
+    const setbackFront = parseFloat(document.getElementById('front').value);
+    const setbackBack = parseFloat(document.getElementById('back').value);
+    const setbackSide = parseFloat(document.getElementById('side').value);
+    const maxHeight = parseFloat(document.getElementById('height').value);
+
+    const buildingWidth = siteWidth - 2 * setbackSide;
+    const buildingLength = siteLength - setbackFront - setbackBack;
+
+    const geometry = new THREE.BoxGeometry(buildingWidth, maxHeight, buildingLength);
+    const material = new THREE.MeshPhongMaterial({color: 0x66ccff});
+    building = new THREE.Mesh(geometry, material);
+    building.position.set(0, maxHeight / 2, 0);
+    scene.add(building);
+
+    const siteArea = siteWidth * siteLength;
+    const buildingArea = buildingWidth * buildingLength;
+    const grossFloorArea = buildingArea;
+    const FAR = (grossFloorArea / siteArea).toFixed(2);
+    const OSR = ((siteArea - buildingArea) / siteArea * 100).toFixed(2);
+
+    document.getElementById("far").innerText = FAR;
+    document.getElementById("osr").innerText = OSR + "%";
+  }
+
+  function exportData() {
+    const siteWidth = parseFloat(document.getElementById('width').value);
+    const siteLength = parseFloat(document.getElementById('length').value);
+    const setbackFront = parseFloat(document.getElementById('front').value);
+    const setbackBack = parseFloat(document.getElementById('back').value);
+    const setbackSide = parseFloat(document.getElementById('side').value);
+    const maxHeight = parseFloat(document.getElementById('height').value);
+
+    const json = {
+      site: { width: siteWidth, length: siteLength },
+      setbacks: { front: setbackFront, back: setbackBack, side: setbackSide },
+      maxHeight: maxHeight
+    };
+
+    const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.download = "building_data.json";
+    link.href = url;
+    link.click();
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  animate();
+</script>
+
+</body>
+</html>
